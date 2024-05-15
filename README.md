@@ -1,5 +1,5 @@
 # jira-to-issues
-Repo for migrating Jiras to GitHub issues. This is specialized to use by the Apache Beam repo, but it can probably be adapted to other use cases relatively painlessly.
+Repo for migrating Jira tickets to GitHub issues. This is specialized to use by the Apache Beam repo, but it can probably be adapted to other use cases relatively painlessly.
 
 To use the tool:
 
