@@ -216,7 +216,8 @@ function labelForIssueType(issueType): string | null {
 
 function jiraToGhIssue(jiraTicket: any): GhIssue {
     let ghIssue = new GhIssue();
-    ghIssue.Title = jiraTicket['fields']['summary'];
+    let key = jiraTicket['key'];
+    ghIssue.Title = `${key}: ${jiraTicket['fields']['summary']}`;
 
     let typeLabel = labelForIssueType(jiraTicket['fields']['issuetype']['name']);
     if (typeLabel != null) {
@@ -225,7 +226,7 @@ function jiraToGhIssue(jiraTicket: any): GhIssue {
     ghIssue.Labels.add("jira");
 
     ghIssue.Description = formatDescription(jiraTicket['fields']['description'] || '');
-    ghIssue.Description += `\n\nImported from Jira [${jiraTicket['key']}](https://1secondeveryday.atlassian.net/browse/${jiraTicket['key']}). Original Jira may contain additional context.`;
+    ghIssue.Description += `\n\nImported from Jira [${key}](https://1secondeveryday.atlassian.net/browse/${key}). Original Jira may contain additional context.`;
     ghIssue.Description += `\nReported by: ${jiraTicket['fields']['reporter']['displayName']}.`;
     ghIssue.Assignee = mapAssigneeToHandle(jiraTicket['fields']['assignee']?.['displayName']);
     ghIssue.JiraReferenceId = jiraTicket['id']
