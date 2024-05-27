@@ -32,17 +32,15 @@ export class GhIssue {
     public Milestone: string;
     public Assignee: string;
     public JiraReferenceId: string;
-    public Children: GhIssue[];
     public Assignable: boolean;
     constructor() {
-        this.Title = '';
+        this.Title = "";
         this.Labels = new Set();
         this.Description = "";
         this.State = "open";
         this.Milestone = "";
         this.Assignee = "";
         this.JiraReferenceId = "";
-        this.Children = [];
         this.Assignable = false;
     }
 }
@@ -96,11 +94,8 @@ async function addMapping(issueNumber, jiraReference) {
     })
 }
 
-async function createIssue(issue: GhIssue, client: any, retry: number = 0, parent: number = -1): Promise<number> {
+async function createIssue(issue: GhIssue, client: any, retry: number = 0): Promise<number> {
     let description = issue.Description;
-    if (parent != -1) {
-        description += `\nSubtask of issue #${parent}`;
-    }
     let assignees: string[] = [];
     if (issue.Assignee && issue.Assignable) {
         assignees.push(issue.Assignee);
@@ -119,11 +114,11 @@ async function createIssue(issue: GhIssue, client: any, retry: number = 0, paren
             console.log(`Getting rate limited. Sleeping ${backoffSeconds} seconds`);
             await sleep(backoffSeconds);
             console.log("Trying again");
-            return await createIssue(issue, client, retry + 1, parent);
+            return await createIssue(issue, client, retry + 1);
         } else if (resp.status < 210) {
             console.log(`Issue #${resp.data.number} maps to ${issue.JiraReferenceId}`);
             if (!issue.Assignable && issue.Assignee) {
-                await addComment(resp.data.number, client, `Unable to assign user @${issue.Assignee}. If able, self-assign, otherwise tag @damccorm so that he can assign you. Because of GitHub's spam prevention system, your activity is required to enable assignment in this repo.`, 0);
+                await addComment(resp.data.number, client, `Unable to assign user @${issue.Assignee}. Please assign yourself, and tag @samsonjs if it doesn't work and he'll assign you. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`, 0);
             }
             fs.appendFileSync(mappingFile, `${resp.data.number}: ${issue.JiraReferenceId}\n`);
             try {
@@ -136,13 +131,6 @@ async function createIssue(issue: GhIssue, client: any, retry: number = 0, paren
                     fs.appendFileSync(mappingFile, `Previous line failed to be recorded in jira\n`);
                 }
             }
-            let issueNumbers: number[] = []
-            for (const child of issue.Children) {
-                issueNumbers.push(await createIssue(child, client, 0, resp.data.number));
-            }
-            if (issueNumbers.length > 0) {
-                await addComment(resp.data.number, client, `The following subtask(s) are associated with this issue:${issueNumbers.map(n => ` #${n}`).join(',')}`, 0);
-            }
             return resp.data.number;
         } else {
             throw new Error(`Failed to create issue: ${resp.data.title} with status code: ${resp.status}. Full response: ${resp}`);
@@ -153,7 +141,7 @@ async function createIssue(issue: GhIssue, client: any, retry: number = 0, paren
         console.log(`Sleeping ${backoffSeconds} seconds before retrying`);
         await sleep(backoffSeconds);
         console.log("Trying again");
-        return await createIssue(issue, client, retry + 1, parent);
+        return await createIssue(issue, client, retry + 1);
     }
 }
 

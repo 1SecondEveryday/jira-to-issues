@@ -22,7 +22,7 @@ async function run(githubToken: string) {
     const jiraTickets = await getJiraTickets();
     console.log("Exporting Jira tickets to GitHub issues");
     const ghIssues = jiraTicketsToGitHubIssues(jiraTickets);
-    console.log(`Found ${ghIssues.length} issues to be created, with an additional ${ghIssues.reduce((acc, i) => i.Children.length + acc, 0)} subtasks.`);
+    console.log(`Found ${ghIssues.length} issues to be created.`);
     await createIssues(ghIssues, githubToken);
 }
 
