@@ -28,7 +28,6 @@ function formatDate(d: Date) {
 
 export async function fetchJiraTickets(username: string, password: string, project: string, label: string, startDate: Date, endDate: Date) {
     const jql = `project = ${project} AND labels = ${label} AND resolution = Unresolved AND created >= ${formatDate(startDate)} AND created <= ${formatDate(endDate)} ORDER BY updated DESC`;
-    console.log(jql);
     const authHeader = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
     const url = `https://1secondeveryday.atlassian.net/rest/api/2/search?jql=${encodeURIComponent(jql)}&maxResults=1000`;
 

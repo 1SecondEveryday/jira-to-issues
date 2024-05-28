@@ -177,7 +177,7 @@ async function createIssue(repo: string, issue: GhIssue, client: any, jiraUserna
     } catch (ex) {
         console.log(`Failed to create issue for ${issue.JiraKey} with error: ${ex}`);
         const backoffSeconds = 60 * (2 ** (retry));
-        console.log(`Sleeping ${backoffSeconds} seconds before retrying`);
+        console.log(`Sleeping ${backoffSeconds} seconds before retrying...`);
         await sleep(backoffSeconds);
         console.log("Trying again");
         return await createIssue(repo, issue, client, jiraUsername, jiraPassword, retry + 1);
@@ -195,10 +195,14 @@ export async function createIssues(issues: GhIssue[], repo: string, token: strin
         fs.mkdirSync(stateDir, { recursive: true });
     }
     for (const issue of issues) {
-        if (alreadyCreated.indexOf(issue.JiraKey) < 0) {
-            await createIssue(repo, issue, client, jiraUsername, jiraPassword);
-            alreadyCreated.push(issue.JiraKey);
-            fs.writeFileSync(stateFile, alreadyCreated.join(','));
+        if (alreadyCreated.indexOf(issue.JiraKey) >= 0) continue;
+
+        await createIssue(repo, issue, client, jiraUsername, jiraPassword);
+        alreadyCreated.push(issue.JiraKey);
+        fs.writeFileSync(stateFile, alreadyCreated.join(','));
+
+        if (alreadyCreated.length % 20 == 0) {
+            console.log(`* Created ${alreadyCreated.length} of ${issues.length} issues in ${owner}:${repo}`);
         }
     }
 }

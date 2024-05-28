@@ -273,8 +273,9 @@ export function jiraTicketsToGitHubIssues(tickets: any[]): GhIssue[] {
     return issues
 }
 
-function mapAssigneeToHandle(assignee: string): string | undefined {
-    console.log(`Mapping Jira handle ${assignee} to GitHub username`);
+function mapAssigneeToHandle(assignee?: string): string | undefined {
+    if (!assignee) return;
+
     switch (assignee) {
         case "Sami Samhuri":
             return "samsonjs";
@@ -300,6 +301,8 @@ function mapAssigneeToHandle(assignee: string): string | undefined {
             return "emilygom";
         case "Kjpvelarmino":
             return "kjpvelarmino";
+        case "Dima Petrov":
+            return; // Treat as unassigned, no longer at 1SE
 
         default:
             console.log(`WARNING! Unable to map Jira assignee "${assignee}" to a GitHub username`);
