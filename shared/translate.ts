@@ -288,15 +288,15 @@ function mapAssigneeToHandle(assignee: string): string | undefined {
         case "Jordon de Hoog":
             return "jordond";
         case "Tyler Weidel":
-            return "tylerweidel ";
+            return "tylerweidel";
         case "Vinh Dinh":
             return "vpdn";
         case "Silvia Burgos":
-            return "TKTK";
+            return "sburgos9";
         case "Jon Palustre":
-            return "TKTK";
+            return "jonalecpalustre";
         case "Emily Gomez":
-            return "TKTK";
+            return "emilygom";
         case "Kjpvelarmino":
             return "TKTK";
 
@@ -313,7 +313,7 @@ function isAssignable(assignee?: string): boolean {
 
     const assignable = [
         "samsonjs", "molesky", "mmabdelateef", "jefflovejapan", "mgarciam", "jordond",
-        "tylerweidel", "vpdn", "silvia-TKTK", "jon-TKTK", "emily-TKTK", "keith-TKTK"
+        "tylerweidel", "vpdn", "sburgos9", "jonalecpalustre", "emilygom", "keith-TKTK"
     ];
     return assignable.indexOf(assignee) > -1;
 }
