@@ -88,7 +88,7 @@ async function addComment(repo: string, issueNumber: number, client: any, body: 
     }
 }
 
-async function addMapping(repo: string, issueNumber: number, jiraReference: string, jiraUsername: string, jiraPassword: string) {
+async function addJiraMappingComment(repo: string, issueNumber: number, jiraReference: string, jiraUsername: string, jiraPassword: string) {
     var bodyData = `{
         "body": "This issue has been migrated to https://github.com/${owner}/${repo}/issues/${issueNumber}"
     }`;
@@ -150,29 +150,30 @@ async function createIssue(repo: string, issue: GhIssue, client: any, jiraUserna
             console.log("Trying again");
             return await createIssue(repo, issue, client, jiraUsername, jiraPassword, retry + 1);
         } else if (resp.status < 210) {
-            console.log(`Issue #${resp.data.number} maps to ${issue.JiraKey}`);
+            const issueNumber = resp.data.number;
+            console.log(`* ${issue.JiraKey} maps to ${owner}:${repo}#${issueNumber}`);
             if (!issue.Assignable && issue.Assignee) {
-                console.log(`* Unable to assign ${repo}#${resp.data.number} to user @${issue.Assignee}. Please assign yourself, and tag @samsonjs if it doesn't work and he'll assign you. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`);
-                await addComment(repo, resp.data.number, client, `Unable to assign user @${issue.Assignee}. Please assign yourself, and tag @samsonjs if it doesn't work and he'll assign you. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`, 0);
+                console.log(`WARNING! Unable to assign ${repo}#${issueNumber} to @${issue.Assignee}. Please assign yourself and tag @samsonjs if it doesn't work. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`);
+                await addComment(repo, issueNumber, client, `Unable to assign @${issue.Assignee}. Please assign yourself and tag @samsonjs if it doesn't work. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`, 0);
             }
             let mappingFile = getMappingFile(repo);
-            fs.appendFileSync(mappingFile, `${resp.data.number}: ${issue.JiraKey}\n`);
+            fs.appendFileSync(mappingFile, `${issueNumber}: ${issue.JiraKey}\n`);
             try {
-                await addMapping(repo, resp.data.number, issue.JiraKey, jiraUsername, jiraPassword)
+                await addJiraMappingComment(repo, issueNumber, issue.JiraKey, jiraUsername, jiraPassword)
             } catch {
                 try {
-                    await addMapping(repo, resp.data.number, issue.JiraKey, jiraUsername, jiraPassword)
+                    await addJiraMappingComment(repo, issueNumber, issue.JiraKey, jiraUsername, jiraPassword)
                 } catch {
-                    console.log(`Failed to record migration of ${issue.JiraKey} to issue number${resp.data.number}`);
+                    console.log(`Failed to record migration of ${issue.JiraKey} to issue number${issueNumber}`);
                     fs.appendFileSync(mappingFile, `Previous line failed to be recorded in jira\n`);
                 }
             }
-            return resp.data.number;
+            return issueNumber;
         } else {
-            throw new Error(`Failed to create issue: ${resp.data.title} with status code: ${resp.status}. Full response: ${resp}`);
+            throw new Error(`Failed to create issue: ${issue.Title} with status code: ${resp.status}. Full response: ${resp}`);
         }
     } catch (ex) {
-        console.log(`Failed to create issue with error: ${ex}`);
+        console.log(`Failed to create issue for ${issue.JiraKey} with error: ${ex}`);
         const backoffSeconds = 60 * (2 ** (retry));
         console.log(`Sleeping ${backoffSeconds} seconds before retrying`);
         await sleep(backoffSeconds);
