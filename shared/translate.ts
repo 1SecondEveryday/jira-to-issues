@@ -301,6 +301,7 @@ function mapAssigneeToHandle(assignee: string): string | undefined {
             return "TKTK";
 
         default:
+            console.log(`WARNING! Unable to map Jira assignee "${assignee}" to a GitHub username`);
             return;
     }
 }
