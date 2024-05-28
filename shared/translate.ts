@@ -251,8 +251,8 @@ function jiraToGhIssue(jiraTicket: any): GhIssue {
         ghIssue.Labels.add(statusLabel);
     }
 
-    ghIssue.Assignable = isAssignable(ghIssue.Assignee);
     ghIssue.Assignee = mapAssigneeToHandle(jiraTicket['fields']['assignee']?.['displayName']);
+    ghIssue.Assignable = isAssignable(ghIssue.Assignee);
     ghIssue.Description = formatDescription(jiraTicket['fields']['description'] || '');
     ghIssue.Description += `\n\nImported from Jira [${key}](https://1secondeveryday.atlassian.net/browse/${key}). Original Jira may contain additional context.`;
     ghIssue.Description += `\nReported by: ${jiraTicket['fields']['reporter']['displayName']}.`;
@@ -273,8 +273,9 @@ export function jiraTicketsToGitHubIssues(tickets: any[]): GhIssue[] {
 }
 
 function mapAssigneeToHandle(assignee: string): string | undefined {
+    console.log(`Mapping Jira handle ${assignee} to GitHub username`);
     switch (assignee) {
-        case "sami":
+        case "Sami Samhuri":
             return "samsonjs";
         case "Megan Olesky":
             return "molesky";
@@ -307,7 +308,7 @@ function mapAssigneeToHandle(assignee: string): string | undefined {
 
 
 function isAssignable(assignee?: string): boolean {
-    if (assignee == null) return false;
+    if (!assignee) return false;
 
     const assignable = [
         "samsonjs", "molesky", "mmabdelateef", "jefflovejapan", "mgarciam", "jordond",
