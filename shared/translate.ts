@@ -299,7 +299,7 @@ function mapAssigneeToHandle(assignee: string): string | undefined {
         case "Emily Gomez":
             return "emilygom";
         case "Kjpvelarmino":
-            return "TKTK";
+            return "kjpvelarmino";
 
         default:
             console.log(`WARNING! Unable to map Jira assignee "${assignee}" to a GitHub username`);
@@ -314,7 +314,7 @@ function isAssignable(assignee?: string): boolean {
 
     const assignable = [
         "samsonjs", "molesky", "mmabdelateef", "jefflovejapan", "mgarciam", "jordond",
-        "tylerweidel", "vpdn", "sburgos9", "jonalecpalustre", "emilygom", "keith-TKTK"
+        "tylerweidel", "vpdn", "sburgos9", "jonalecpalustre", "emilygom", "kjpvelarmino"
     ];
     return assignable.indexOf(assignee) > -1;
 }
