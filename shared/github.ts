@@ -30,6 +30,7 @@ export class GhIssue {
     public Assignee?: string;
     public Description: string;
     public JiraKey: string;
+    public JiraReferenceId: string;
     public Labels: Set<string>;
     public Milestone: string;
     public Title: string;
@@ -38,6 +39,7 @@ export class GhIssue {
         this.Assignee = "";
         this.Description = "";
         this.JiraKey = "";
+        this.JiraReferenceId = "";
         this.Labels = new Set();
         this.Milestone = "";
         this.Title = "";
@@ -159,12 +161,12 @@ async function createIssue(repo: string, issue: GhIssue, client: any, jiraUserna
             let mappingFile = getMappingFile(repo);
             fs.appendFileSync(mappingFile, `${issueNumber}: ${issue.JiraKey}\n`);
             try {
-                await addJiraMappingComment(repo, issueNumber, issue.JiraKey, jiraUsername, jiraPassword)
+                await addJiraMappingComment(repo, issueNumber, issue.JiraReferenceId, jiraUsername, jiraPassword)
             } catch {
                 try {
-                    await addJiraMappingComment(repo, issueNumber, issue.JiraKey, jiraUsername, jiraPassword)
+                    await addJiraMappingComment(repo, issueNumber, issue.JiraReferenceId, jiraUsername, jiraPassword)
                 } catch {
-                    console.log(`Failed to record migration of ${issue.JiraKey} to issue number${issueNumber}`);
+                    console.log(`Failed to record migration of ${issue.JiraKey} to issue ${owner}:${repo}#${issueNumber}`);
                     fs.appendFileSync(mappingFile, `Previous line failed to be recorded in jira\n`);
                 }
             }

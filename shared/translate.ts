@@ -257,6 +257,7 @@ function jiraToGhIssue(jiraTicket: any): GhIssue {
     ghIssue.Description += `\n\nImported from Jira [${key}](https://1secondeveryday.atlassian.net/browse/${key}). Original Jira may contain additional context.`;
     ghIssue.Description += `\nReported by: ${jiraTicket['fields']['reporter']['displayName']}.`;
     ghIssue.JiraKey = key
+    ghIssue.JiraReferenceId = jiraTicket['id'];
     ghIssue.Milestone = jiraTicket['fields']['fixVersions'][0]?.['name']?.replace('Android ', '')?.replace('iOS ', '');
 
     return ghIssue;
