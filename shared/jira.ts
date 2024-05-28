@@ -21,9 +21,13 @@ const batchSize = 90; // Size of the batch of Jira tickets we'll get at once (da
 function formatDate(d: Date) {
     let month = `${d.getMonth() + 1}`;
     if (d.getMonth() + 1 < 10) {
-        month = `0${d.getMonth() + 1}`;
+        month = `0${month}`;
     }
-    return `${d.getFullYear()}-${month}-${d.getDate()}`;
+    let day = String(d.getDate());
+    if (d.getDate() < 10) {
+        day = `0${day}`;
+    }
+    return `${d.getFullYear()}-${month}-${day}`;
 }
 
 export async function fetchJiraTickets(username: string, password: string, project: string, label: string, startDate: Date, endDate: Date) {

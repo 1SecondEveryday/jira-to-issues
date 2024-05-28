@@ -153,7 +153,6 @@ async function createIssue(repo: string, issue: GhIssue, client: any, jiraUserna
             return await createIssue(repo, issue, client, jiraUsername, jiraPassword, retry + 1);
         } else if (resp.status < 210) {
             const issueNumber = resp.data.number;
-            console.log(`* ${issue.JiraKey} maps to ${owner}:${repo}#${issueNumber}`);
             if (!issue.Assignable && issue.Assignee) {
                 console.log(`WARNING! Unable to assign ${repo}#${issueNumber} to @${issue.Assignee}. Please assign yourself and tag @samsonjs if it doesn't work. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`);
                 await addComment(repo, issueNumber, client, `Unable to assign @${issue.Assignee}. Please assign yourself and tag @samsonjs if it doesn't work. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`, 0);
@@ -175,11 +174,10 @@ async function createIssue(repo: string, issue: GhIssue, client: any, jiraUserna
             throw new Error(`Failed to create issue: ${issue.Title} with status code: ${resp.status}. Full response: ${resp}`);
         }
     } catch (ex) {
-        console.log(`Failed to create issue for ${issue.JiraKey} with error: ${ex}`);
+        console.log(`* Failed to create issue for ${issue.JiraKey} with error: ${ex}`);
         const backoffSeconds = 60 * (2 ** (retry));
         console.log(`Sleeping ${backoffSeconds} seconds before retrying...`);
         await sleep(backoffSeconds);
-        console.log("Trying again");
         return await createIssue(repo, issue, client, jiraUsername, jiraPassword, retry + 1);
     }
 }
@@ -197,12 +195,12 @@ export async function createIssues(issues: GhIssue[], repo: string, token: strin
     for (const issue of issues) {
         if (alreadyCreated.indexOf(issue.JiraKey) >= 0) continue;
 
-        await createIssue(repo, issue, client, jiraUsername, jiraPassword);
+        const issueNumber = await createIssue(repo, issue, client, jiraUsername, jiraPassword);
         alreadyCreated.push(issue.JiraKey);
         fs.writeFileSync(stateFile, alreadyCreated.join(','));
+        console.log(`* (${alreadyCreated.length} of ${issues.length}) ${issue.JiraKey} maps to ${owner}:${repo}#${issueNumber}`);
 
-        if (alreadyCreated.length % 20 == 0) {
-            console.log(`* Created ${alreadyCreated.length} of ${issues.length} issues in ${owner}:${repo}`);
-        }
+        // Try not to get rate-limited
+        await sleep(1);
     }
 }
