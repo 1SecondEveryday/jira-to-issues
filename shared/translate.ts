@@ -254,7 +254,7 @@ function jiraToGhIssue(jiraTicket: any): GhIssue {
     ghIssue.Assignable = isAssignable(ghIssue.Assignee);
     ghIssue.Assignee = mapAssigneeToHandle(jiraTicket['fields']['assignee']?.['displayName']);
     ghIssue.Description = formatDescription(jiraTicket['fields']['description'] || '');
-    ghIssue.Description += `Imported from Jira [${key}](https://1secondeveryday.atlassian.net/browse/${key}). Original Jira may contain additional context.`;
+    ghIssue.Description += `\n\nImported from Jira [${key}](https://1secondeveryday.atlassian.net/browse/${key}). Original Jira may contain additional context.`;
     ghIssue.Description += `\nReported by: ${jiraTicket['fields']['reporter']['displayName']}.`;
     ghIssue.JiraKey = key
     ghIssue.Milestone = jiraTicket['fields']['fixVersions'][0]?.['name']?.replace('Android ', '')?.replace('iOS ', '');
