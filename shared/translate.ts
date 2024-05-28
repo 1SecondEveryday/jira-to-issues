@@ -237,12 +237,12 @@ function jiraToGhIssue(jiraTicket: any): GhIssue {
     }
     ghIssue.Labels.add("Jira");
 
-    ghIssue.Description = formatDescription(jiraTicket['fields']['description'] || '');
-    ghIssue.Description += `\n\nImported from Jira [${key}](https://1secondeveryday.atlassian.net/browse/${key}). Original Jira may contain additional context.`;
-    ghIssue.Description += `\nReported by: ${jiraTicket['fields']['reporter']['displayName']}.`;
     ghIssue.Assignable = isAssignable(ghIssue.Assignee);
     ghIssue.Assignee = mapAssigneeToHandle(jiraTicket['fields']['assignee']?.['displayName']);
-    ghIssue.JiraReferenceId = jiraTicket['id']
+    ghIssue.Description = formatDescription(jiraTicket['fields']['description'] || '');
+    ghIssue.Description += `Imported from Jira [${key}](https://1secondeveryday.atlassian.net/browse/${key}). Original Jira may contain additional context.`;
+    ghIssue.Description += `\nReported by: ${jiraTicket['fields']['reporter']['displayName']}.`;
+    ghIssue.JiraKey = key
 
     return ghIssue;
 }

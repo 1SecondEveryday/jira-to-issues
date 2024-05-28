@@ -24,7 +24,7 @@ export class GhIssue {
     public Assignable: boolean;
     public Assignee?: string;
     public Description: string;
-    public JiraReferenceId: string;
+    public JiraKey: string;
     public Labels: Set<string>;
     public Milestone: string;
     public Title: string;
@@ -32,7 +32,7 @@ export class GhIssue {
         this.Assignable = false;
         this.Assignee = "";
         this.Description = "";
-        this.JiraReferenceId = "";
+        this.JiraKey = "";
         this.Labels = new Set();
         this.Milestone = "";
         this.Title = "";
@@ -120,19 +120,20 @@ async function createIssue(repo: string, issue: GhIssue, client: any, jiraUserna
             console.log("Trying again");
             return await createIssue(repo, issue, client, jiraUsername, jiraPassword, retry + 1);
         } else if (resp.status < 210) {
-            console.log(`Issue #${resp.data.number} maps to ${issue.JiraReferenceId}`);
+            console.log(`Issue #${resp.data.number} maps to ${issue.JiraKey}`);
             if (!issue.Assignable && issue.Assignee) {
-                await addComment(repo, resp.data.number, client, `Unable to assign user @${issue.Assignee}. Please assign yourself, and tag @samsonjs if it doesn't work and he'll assign you. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`, 0);
+                console.log(`* Unable to assign ${repo}#${resp.data.number} to user (at)${issue.Assignee}. Please assign yourself, and tag @samsonjs if it doesn't work and he'll assign you. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`);
+                await addComment(repo, resp.data.number, client, `Unable to assign user (at)${issue.Assignee}. Please assign yourself, and tag @samsonjs if it doesn't work and he'll assign you. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`, 0);
             }
             let mappingFile = getMappingFile(repo);
-            fs.appendFileSync(mappingFile, `${resp.data.number}: ${issue.JiraReferenceId}\n`);
+            fs.appendFileSync(mappingFile, `${resp.data.number}: ${issue.JiraKey}\n`);
             try {
-                await addMapping(repo, resp.data.number, issue.JiraReferenceId, jiraUsername, jiraPassword)
+                await addMapping(repo, resp.data.number, issue.JiraKey, jiraUsername, jiraPassword)
             } catch {
                 try {
-                    await addMapping(repo, resp.data.number, issue.JiraReferenceId, jiraUsername, jiraPassword)
+                    await addMapping(repo, resp.data.number, issue.JiraKey, jiraUsername, jiraPassword)
                 } catch {
-                    console.log(`Failed to record migration of ${issue.JiraReferenceId} to issue number${resp.data.number}`);
+                    console.log(`Failed to record migration of ${issue.JiraKey} to issue number${resp.data.number}`);
                     fs.appendFileSync(mappingFile, `Previous line failed to be recorded in jira\n`);
                 }
             }
@@ -161,9 +162,9 @@ export async function createIssues(issues: GhIssue[], repo: string, token: strin
         fs.mkdirSync(stateDir, { recursive: true });
     }
     for (const issue of issues) {
-        if (alreadyCreated.indexOf(issue.JiraReferenceId) < 0) {
+        if (alreadyCreated.indexOf(issue.JiraKey) < 0) {
             await createIssue(repo, issue, client, jiraUsername, jiraPassword);
-            alreadyCreated.push(issue.JiraReferenceId);
+            alreadyCreated.push(issue.JiraKey);
             fs.writeFileSync(stateFile, alreadyCreated.join(','));
         }
     }
