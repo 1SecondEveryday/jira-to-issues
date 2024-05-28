@@ -20,6 +20,11 @@ const fetch = require('node-fetch');
 
 const owner = '1SecondEveryday';
 
+/**
+ * Maps milestone names to numbers (IDs).
+ */
+let milestoneMap = Object.create(null);
+
 export class GhIssue {
     public Assignable: boolean;
     public Assignee?: string;
@@ -105,13 +110,38 @@ async function createIssue(repo: string, issue: GhIssue, client: any, jiraUserna
         assignees.push(issue.Assignee);
     }
     try {
+        var milestoneNumber;
+        if (issue.Milestone) {
+            if (Object.keys(milestoneMap).length == 0) {
+                let milestoneResp = await client.rest.issues.listMilestones({
+                    owner: owner,
+                    repo: repo,
+                });
+                for (const milestone of milestoneResp.data) {
+                    milestoneMap[milestone['title']] = milestone['number'];
+                }
+                console.log(`Cached ${Object.keys(milestoneMap).length} milestones for ${owner}/${repo}`);
+            }
+            milestoneNumber = milestoneMap[issue.Milestone];
+            if (!milestoneNumber) {
+                console.log(`Creating milestone ${issue.Milestone} for ${owner}/${repo}`);
+                const milestone = await client.rest.issues.createMilestone({
+                    owner: owner,
+                    repo: repo,
+                    title: issue.Milestone,
+                });
+                milestoneMap[milestone.data['title']] = milestone.data['number'];
+                milestoneNumber = milestone.data['number'];
+            }
+        }
         let resp = await client.rest.issues.create({
             owner: owner,
             repo: repo,
             assignees: assignees,
             title: issue.Title,
             body: description,
-            labels: Array.from(issue.Labels)
+            labels: Array.from(issue.Labels),
+            milestone: milestoneNumber,
         });
         if (resp.status == 403) {
             const backoffSeconds = 60 * (2 ** (retry));

@@ -226,16 +226,30 @@ function labelForIssueType(issueType?: string): string | undefined {
     }
 }
 
+function labelForStatus(status: string): string | undefined {
+    switch (status) {
+        case 'QA':
+            return 'QA';
+
+        default:
+            return
+    }
+}
+
 function jiraToGhIssue(jiraTicket: any): GhIssue {
     let ghIssue = new GhIssue();
     let key = jiraTicket['key'];
     ghIssue.Title = `${key}: ${jiraTicket['fields']['summary']}`;
 
+    ghIssue.Labels.add('Jira');
     let typeLabel = labelForIssueType(jiraTicket['fields']['issuetype']['name']);
-    if (typeLabel != null) {
+    if (typeLabel) {
         ghIssue.Labels.add(typeLabel);
     }
-    ghIssue.Labels.add("Jira");
+    let statusLabel = labelForStatus(jiraTicket['fields']['status']['name']);
+    if (statusLabel) {
+        ghIssue.Labels.add(statusLabel);
+    }
 
     ghIssue.Assignable = isAssignable(ghIssue.Assignee);
     ghIssue.Assignee = mapAssigneeToHandle(jiraTicket['fields']['assignee']?.['displayName']);
@@ -243,6 +257,7 @@ function jiraToGhIssue(jiraTicket: any): GhIssue {
     ghIssue.Description += `Imported from Jira [${key}](https://1secondeveryday.atlassian.net/browse/${key}). Original Jira may contain additional context.`;
     ghIssue.Description += `\nReported by: ${jiraTicket['fields']['reporter']['displayName']}.`;
     ghIssue.JiraKey = key
+    ghIssue.Milestone = jiraTicket['fields']['fixVersions'][0]?.['name']?.replace('Android ', '')?.replace('iOS ', '');
 
     return ghIssue;
 }
