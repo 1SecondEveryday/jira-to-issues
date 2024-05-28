@@ -16,9 +16,9 @@
 
 const fetch = require('node-fetch');
 
-const batchSize = 90; // Size of the batch of JIRA issues we'll get at once (days between start and creation date).
+const batchSize = 90; // Size of the batch of Jira tickets we'll get at once (days between start and creation date).
 
-function formatDate(d) {
+function formatDate(d: Date) {
     let month = `${d.getMonth() + 1}`;
     if (d.getMonth() + 1 < 10) {
         month = `0${d.getMonth() + 1}`;
@@ -26,8 +26,10 @@ function formatDate(d) {
     return `${d.getFullYear()}-${month}-${d.getDate()}`;
 }
 
-async function fetchJiraIssues(jql) {
-    const authHeader = `Basic ${Buffer.from(`${process.env['JIRA_USERNAME']}:${process.env['JIRA_PASSWORD']}`).toString('base64')}`;
+export async function fetchJiraTickets(username: string, password: string, project: string, label: string, startDate: Date, endDate: Date) {
+    const jql = `project = ${project} AND labels = ${label} AND resolution = Unresolved AND created >= ${formatDate(startDate)} AND created <= ${formatDate(endDate)} ORDER BY updated DESC`;
+    console.log(jql);
+    const authHeader = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
     const url = `https://1secondeveryday.atlassian.net/rest/api/2/search?jql=${encodeURIComponent(jql)}&maxResults=1000`;
 
     const response = await fetch(url, {
@@ -39,40 +41,38 @@ async function fetchJiraIssues(jql) {
     });
 
     if (!response.ok) {
-        throw new Error(`Failed to fetch Jira issues: ${response.statusText}`);
+        throw new Error(`Failed to fetch Jira tickets: ${response.statusText}`);
     }
 
     const data = await response.json();
     return data.issues;
 }
 
-export async function getJiraTickets() {
-    let tickets = [];
+export async function fetchAllJiraTickets(username: string, password: string, project: string, label: string) {
+    let allTickets = [];
     let curEnd = new Date();
     let curStart = new Date();
     curStart.setDate(curStart.getDate() - batchSize);
 
     while (true) {
-        console.log(`Getting Jira issues between ${formatDate(curStart)} and ${formatDate(curEnd)}`);
-        const jql = `project = 1SE AND labels = Services AND resolution = Unresolved AND created >= ${formatDate(curStart)} AND created <= ${formatDate(curEnd)} ORDER BY updated DESC`;
-        const issues = await fetchJiraIssues(jql);
+        console.log(`Getting Jira tickets between ${formatDate(curStart)} and ${formatDate(curEnd)}`);
+        const tickets = await fetchJiraTickets(username, password, project, label, curStart, curEnd);
 
-        if (issues.length === 0) {
+        if (tickets.length === 0) {
             break;
         }
 
-        tickets = tickets.concat(issues);
+        allTickets = allTickets.concat(tickets);
         curEnd.setDate(curEnd.getDate() - batchSize - 1);
         curStart.setDate(curStart.getDate() - batchSize - 1);
     }
 
     curStart.setDate(curStart.getDate() - (365 * 50));
-    const jql = `project = 1SE AND labels = Services AND resolution = Unresolved AND created >= ${formatDate(curStart)} AND created <= ${formatDate(curEnd)} ORDER BY updated DESC`;
-    const issues = await fetchJiraIssues(jql);
+    const lastTickets = await fetchJiraTickets(username, password, project, label, curStart, curEnd);
 
-    if (issues.length !== 0) {
-        tickets = tickets.concat(issues);
+    if (lastTickets.length !== 0) {
+        allTickets = allTickets.concat(lastTickets);
     }
 
-    return tickets.reverse();
+    return allTickets.reverse();
 }

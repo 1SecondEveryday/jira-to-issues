@@ -14,29 +14,41 @@
  * limitations under the License.
  */
 
-const { getJiraTickets } = require("./shared/jira");
+const { fetchJiraTickets, fetchAllJiraTickets } = require("./shared/jira");
 const { jiraTicketsToGitHubIssues } = require("./shared/translate");
 const { createIssues } = require('./shared/github');
 
-async function run(githubToken: string) {
-    const jiraTickets = await getJiraTickets();
+async function run(jiraUsername: string, jiraPassword: string, jiraProject: string, jiraLabel: string, githubToken: string, githubRepo: string) {
+    const jiraTickets = await fetchAllJiraTickets(jiraUsername, jiraPassword, jiraProject, jiraLabel);
     console.log("Exporting Jira tickets to GitHub issues");
     const ghIssues = jiraTicketsToGitHubIssues(jiraTickets);
     console.log(`Found ${ghIssues.length} issues to be created.`);
-    await createIssues(ghIssues, githubToken);
+    await createIssues(ghIssues, githubRepo, githubToken, jiraUsername, jiraPassword);
 }
 
+const githubRepo = process.env['GITHUB_REPO'];
+if (!githubRepo) {
+    throw new Error('No GitHub repo provided - set the GITHUB_REPO env variable before running');
+}
 const githubToken = process.env['GITHUB_TOKEN'];
 if (!githubToken) {
-    throw new Error('No GitHub Token provided - set the token in a GITHUB_TOKEN env variable before running');
+    throw new Error('No GitHub token provided - set the token in a GITHUB_TOKEN env variable before running');
 }
 const jiraUsername = process.env['JIRA_USERNAME'];
 if (!jiraUsername) {
-    throw new Error('No Jira Username provided - set the token in a JIRA_USERNAME env variable before running');
+    throw new Error('No Jira username provided - set the JIRA_USERNAME env variable before running');
 }
 const jiraPassword = process.env['JIRA_PASSWORD'];
-if (!jiraUsername) {
-    throw new Error('No Jira Password provided - set the token in a JIRA_PASSWORD env variable before running');
+if (!jiraPassword) {
+    throw new Error('No Jira password provided - set the JIRA_PASSWORD env variable before running');
+}
+const jiraProject = process.env['JIRA_PROJECT'];
+if (!jiraProject) {
+    throw new Error('No Jira project provided - set the JIRA_PROJECT env variable before running');
+}
+const jiraLabel = process.env['JIRA_LABEL'];
+if (!jiraLabel) {
+    throw new Error('No Jira label provided - set the JIRA_LABEL env variable before running');
 }
 
-run(githubToken);
+run(jiraUsername, jiraPassword, jiraProject, jiraLabel, githubToken, githubRepo);

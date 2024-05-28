@@ -203,14 +203,26 @@ function formatDescription(d: string): string {
     return d;
 }
 
-function labelForIssueType(issueType): string | null {
+function labelForIssueType(issueType?: string): string | undefined {
     switch (issueType) {
         case "Bug":
         case "Unconfirmed Bug":
             return "bug";
 
+        case "Story":
+        case "Metastory":
+        case "Task":
+        case "Sub-task":
+            return "feature";
+
+        case "Investigation":
+            return "experiment";
+
+        case "Epic":
+            return "epic";
+
         default:
-            return null
+            return
     }
 }
 
@@ -223,7 +235,7 @@ function jiraToGhIssue(jiraTicket: any): GhIssue {
     if (typeLabel != null) {
         ghIssue.Labels.add(typeLabel);
     }
-    ghIssue.Labels.add("jira");
+    ghIssue.Labels.add("Jira");
 
     ghIssue.Description = formatDescription(jiraTicket['fields']['description'] || '');
     ghIssue.Description += `\n\nImported from Jira [${key}](https://1secondeveryday.atlassian.net/browse/${key}). Original Jira may contain additional context.`;
@@ -236,9 +248,8 @@ function jiraToGhIssue(jiraTicket: any): GhIssue {
 }
 
 export function jiraTicketsToGitHubIssues(tickets: any[]): GhIssue[] {
-    const filteredJiraTickets = tickets.filter(j => j['fields']['issuetype']['name'] != "Sub-task");
     let issues: GhIssue[] = [];
-    for (const jiraTicket of filteredJiraTickets) {
+    for (const jiraTicket of tickets) {
         let ghIssue = jiraToGhIssue(jiraTicket);
         issues.push(ghIssue);
     }
@@ -246,7 +257,7 @@ export function jiraTicketsToGitHubIssues(tickets: any[]): GhIssue[] {
     return issues
 }
 
-function mapAssigneeToHandle(assignee: string): string {
+function mapAssigneeToHandle(assignee: string): string | undefined {
     switch (assignee) {
         case "sami":
             return "samsonjs";
@@ -268,17 +279,24 @@ function mapAssigneeToHandle(assignee: string): string {
             return "TKTK";
         case "Jon Palustre":
             return "TKTK";
-    }
+        case "Emily Gomez":
+            return "TKTK";
+        case "Kjpvelarmino":
+            return "TKTK";
 
-    return "";
+        default:
+            return;
+    }
 }
 
 
 
-function isAssignable(assignee: string): boolean {
+function isAssignable(assignee?: string): boolean {
+    if (assignee == null) return false;
+
     const assignable = [
         "samsonjs", "molesky", "mmabdelateef", "jefflovejapan", "mgarciam", "jordond",
-        "tylerweidel", "vpdn", "silvia-TKTK", "jon-TKTK"
+        "tylerweidel", "vpdn", "silvia-TKTK", "jon-TKTK", "emily-TKTK", "keith-TKTK"
     ];
     return assignable.indexOf(assignee) > -1;
 }

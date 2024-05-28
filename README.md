@@ -9,10 +9,13 @@ To use the tool:
 4. Update the jira link in [shared/github.ts](https://github.com/damccorm/jira-to-issues/blob/0b9eb93f915385e959a30a79e1c6397732d56a2f/shared/github.ts#L68-L70) to point to the Jira board you would like migrated and the GitHub repo you are migrating to. Right now it is set to Beam's Jira and Issues.
 5. In [shared/translate.ts](https://github.com/damccorm/jira-to-issues/blob/93416c4643cc046834b344fd989db26e5c84ff68/shared/translate.ts), update the list of [valid labels you'd like migrated](https://github.com/damccorm/jira-to-issues/blob/93416c4643cc046834b344fd989db26e5c84ff68/shared/translate.ts#L190), the [mapping of existing labels/components to label names](https://github.com/damccorm/jira-to-issues/blob/93416c4643cc046834b344fd989db26e5c84ff68/shared/translate.ts#L224), the [mapping of jira handles to github handles](https://github.com/damccorm/jira-to-issues/blob/93416c4643cc046834b344fd989db26e5c84ff68/shared/translate.ts#L350), and the [list of valid assignees](https://github.com/damccorm/jira-to-issues/blob/93416c4643cc046834b344fd989db26e5c84ff68/shared/translate.ts#L501) (people who either have triage access or more to the repo or who have previously interacted with issues in the repo. All other handles will be silently ignored by GitHub as part of their spam prevention).
 6. Create a PAT with repo/issue access to your target repo. This can be done from https://github.com/settings/tokens/new
-7. Set your token in an environment variable `GITHUB_TOKEN`: `export GITHUB_TOKEN=<PAT>`
-8. Set your JIRA username in an environment variable `JIRA_USERNAME`: `export JIRA_USERNAME=<username>`
-9. Set your JIRA password in an environment variable `JIRA_PASSWORD`: `export JIRA_PASSWORD=<password>`
-10. Run `npm install`
-11. Run `npm run exec`
+8. Set your repo in an environment variable `GITHUB_REPO`: `export GITHUB_REPO=<repo>`
+9. Set your GitHub token in an environment variable `GITHUB_TOKEN`: `export GITHUB_TOKEN=<PAT>`
+10. Set your Jira username in an environment variable `JIRA_USERNAME`: `export JIRA_USERNAME=<username>`
+11. Set your Jira password in an environment variable `JIRA_PASSWORD`: `export JIRA_PASSWORD=<password>`
+12. Set your Jira project in an environment variable `JIRA_PROJECT`: `export JIRA_PROJECT=<project>`
+13. Set your Jira label in an environment variable `JIRA_LABEL`: `export JIRA_LABEL=<label>`
+14. Run `npm install`
+15. Run `npm run exec`
 
 As long as you use the existing repo that you've cloned, the `exec` operation is resumable. So if you run into any issues during migration (e.g. your computer randomly restarts), you can resume the migration by running `npm run exec` again without risking duplicate issues.

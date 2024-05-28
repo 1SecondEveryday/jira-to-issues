@@ -19,30 +19,36 @@ const fs = require('fs');
 const fetch = require('node-fetch');
 
 const owner = '1SecondEveryday';
-const repo = 'JiraTest';
-const stateDir = `./repo-state/${owner}/${repo}`;
-const stateFile = `${stateDir}/alreadyCreated.txt`;
-const mappingFile = `${stateDir}/mapping.txt`;
 
 export class GhIssue {
-    public Title: string;
-    public Labels: Set<string>;
-    public Description: string;
-    public State: string;
-    public Milestone: string;
-    public Assignee: string;
-    public JiraReferenceId: string;
     public Assignable: boolean;
+    public Assignee?: string;
+    public Description: string;
+    public JiraReferenceId: string;
+    public Labels: Set<string>;
+    public Milestone: string;
+    public Title: string;
     constructor() {
-        this.Title = "";
-        this.Labels = new Set();
-        this.Description = "";
-        this.State = "open";
-        this.Milestone = "";
-        this.Assignee = "";
-        this.JiraReferenceId = "";
         this.Assignable = false;
+        this.Assignee = "";
+        this.Description = "";
+        this.JiraReferenceId = "";
+        this.Labels = new Set();
+        this.Milestone = "";
+        this.Title = "";
     }
+}
+
+function getStateDir(repo: string): string {
+    return `./repo-state/${owner}/${repo}`;
+}
+
+function getStateFile(repo: string): string {
+    return `${getStateDir(repo)}/alreadyCreated.txt`;
+}
+
+function getMappingFile(repo: string): string {
+    return `${getStateDir(repo)}/mapping.txt`;
 }
 
 function sleep(seconds: number): Promise<null> {
@@ -50,7 +56,7 @@ function sleep(seconds: number): Promise<null> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function addComment(issueNumber: number, client: any, body: string, retry: number = 0) {
+async function addComment(repo: string, issueNumber: number, client: any, body: string, retry: number = 0) {
     try {
         let resp = await client.rest.issues.createComment({
             owner: owner,
@@ -63,7 +69,7 @@ async function addComment(issueNumber: number, client: any, body: string, retry:
             console.log(`Getting rate limited. Sleeping ${backoffSeconds} seconds`);
             await sleep(backoffSeconds);
             console.log("Trying again");
-            await addComment(issueNumber, client, body, retry + 1);
+            await addComment(repo, issueNumber, client, body, retry + 1);
         } else if (resp.status > 210) {
             throw new Error(`Failed to comment on issue with status code: ${resp.status}. Full response: ${resp}`);
         }
@@ -73,20 +79,18 @@ async function addComment(issueNumber: number, client: any, body: string, retry:
         console.log(`Sleeping ${backoffSeconds} seconds before retrying`);
         await sleep(backoffSeconds);
         console.log("Trying again");
-        await addComment(issueNumber, client, body, retry + 1);
+        await addComment(repo, issueNumber, client, body, retry + 1);
     }
 }
 
-async function addMapping(issueNumber, jiraReference) {
+async function addMapping(repo: string, issueNumber: number, jiraReference: string, jiraUsername: string, jiraPassword: string) {
     var bodyData = `{
         "body": "This issue has been migrated to https://github.com/${owner}/${repo}/issues/${issueNumber}"
     }`;
     await fetch(`https://1secondeveryday.atlassian.net/rest/api/2/issue/${jiraReference}/comment`, {
         method: 'POST',
         headers: {
-            'Authorization': `Basic ${Buffer.from(
-                `${process.env['JIRA_USERNAME']}:${process.env['JIRA_PASSWORD']}`
-            ).toString('base64')}`,
+            'Authorization': `Basic ${Buffer.from(`${jiraUsername}:${jiraPassword}`).toString('base64')}`,
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         },
@@ -94,7 +98,7 @@ async function addMapping(issueNumber, jiraReference) {
     })
 }
 
-async function createIssue(issue: GhIssue, client: any, retry: number = 0): Promise<number> {
+async function createIssue(repo: string, issue: GhIssue, client: any, jiraUsername: string, jiraPassword: string, retry: number = 0): Promise<number> {
     let description = issue.Description;
     let assignees: string[] = [];
     if (issue.Assignee && issue.Assignable) {
@@ -114,18 +118,19 @@ async function createIssue(issue: GhIssue, client: any, retry: number = 0): Prom
             console.log(`Getting rate limited. Sleeping ${backoffSeconds} seconds`);
             await sleep(backoffSeconds);
             console.log("Trying again");
-            return await createIssue(issue, client, retry + 1);
+            return await createIssue(repo, issue, client, jiraUsername, jiraPassword, retry + 1);
         } else if (resp.status < 210) {
             console.log(`Issue #${resp.data.number} maps to ${issue.JiraReferenceId}`);
             if (!issue.Assignable && issue.Assignee) {
-                await addComment(resp.data.number, client, `Unable to assign user @${issue.Assignee}. Please assign yourself, and tag @samsonjs if it doesn't work and he'll assign you. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`, 0);
+                await addComment(repo, resp.data.number, client, `Unable to assign user @${issue.Assignee}. Please assign yourself, and tag @samsonjs if it doesn't work and he'll assign you. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`, 0);
             }
+            let mappingFile = getMappingFile(repo);
             fs.appendFileSync(mappingFile, `${resp.data.number}: ${issue.JiraReferenceId}\n`);
             try {
-                await addMapping(resp.data.number, issue.JiraReferenceId)
+                await addMapping(repo, resp.data.number, issue.JiraReferenceId, jiraUsername, jiraPassword)
             } catch {
                 try {
-                    await addMapping(resp.data.number, issue.JiraReferenceId)
+                    await addMapping(repo, resp.data.number, issue.JiraReferenceId, jiraUsername, jiraPassword)
                 } catch {
                     console.log(`Failed to record migration of ${issue.JiraReferenceId} to issue number${resp.data.number}`);
                     fs.appendFileSync(mappingFile, `Previous line failed to be recorded in jira\n`);
@@ -141,13 +146,15 @@ async function createIssue(issue: GhIssue, client: any, retry: number = 0): Prom
         console.log(`Sleeping ${backoffSeconds} seconds before retrying`);
         await sleep(backoffSeconds);
         console.log("Trying again");
-        return await createIssue(issue, client, retry + 1);
+        return await createIssue(repo, issue, client, jiraUsername, jiraPassword, retry + 1);
     }
 }
 
-export async function createIssues(issues: GhIssue[], githubToken: string) {
-    const client = new Octokit({ auth: githubToken });
+export async function createIssues(issues: GhIssue[], repo: string, token: string, jiraUsername: string, jiraPassword: string) {
+    const client = new Octokit({ auth: token });
     let alreadyCreated: string[] = [];
+    let stateDir = getStateDir(repo);
+    let stateFile = getStateFile(repo);
     if (fs.existsSync(stateFile)) {
         alreadyCreated = fs.readFileSync(stateFile, { encoding: 'utf8' }).split(',');
     } else {
@@ -155,7 +162,7 @@ export async function createIssues(issues: GhIssue[], githubToken: string) {
     }
     for (const issue of issues) {
         if (alreadyCreated.indexOf(issue.JiraReferenceId) < 0) {
-            await createIssue(issue, client);
+            await createIssue(repo, issue, client, jiraUsername, jiraPassword);
             alreadyCreated.push(issue.JiraReferenceId);
             fs.writeFileSync(stateFile, alreadyCreated.join(','));
         }
