@@ -152,8 +152,8 @@ async function createIssue(repo: string, issue: GhIssue, client: any, jiraUserna
         } else if (resp.status < 210) {
             console.log(`Issue #${resp.data.number} maps to ${issue.JiraKey}`);
             if (!issue.Assignable && issue.Assignee) {
-                console.log(`* Unable to assign ${repo}#${resp.data.number} to user (at)${issue.Assignee}. Please assign yourself, and tag @samsonjs if it doesn't work and he'll assign you. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`);
-                await addComment(repo, resp.data.number, client, `Unable to assign user (at)${issue.Assignee}. Please assign yourself, and tag @samsonjs if it doesn't work and he'll assign you. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`, 0);
+                console.log(`* Unable to assign ${repo}#${resp.data.number} to user @${issue.Assignee}. Please assign yourself, and tag @samsonjs if it doesn't work and he'll assign you. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`);
+                await addComment(repo, resp.data.number, client, `Unable to assign user @${issue.Assignee}. Please assign yourself, and tag @samsonjs if it doesn't work and he'll assign you. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`, 0);
             }
             let mappingFile = getMappingFile(repo);
             fs.appendFileSync(mappingFile, `${resp.data.number}: ${issue.JiraKey}\n`);
