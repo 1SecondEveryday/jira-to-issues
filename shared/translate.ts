@@ -237,16 +237,17 @@ function labelForStatus(status: string): string | undefined {
 }
 
 function jiraToGhIssue(jiraTicket: any): GhIssue {
-    let ghIssue = new GhIssue();
-    let key = jiraTicket['key'];
+    const ghIssue = new GhIssue();
+    const key = jiraTicket['key'];
+    const intercomConversationId = jiraTicket['fields']['customfield_10052'];
     ghIssue.Title = `${key}: ${jiraTicket['fields']['summary']}`;
 
     ghIssue.Labels.add('Jira');
-    let typeLabel = labelForIssueType(jiraTicket['fields']['issuetype']['name']);
+    const typeLabel = labelForIssueType(jiraTicket['fields']['issuetype']['name']);
     if (typeLabel) {
         ghIssue.Labels.add(typeLabel);
     }
-    let statusLabel = labelForStatus(jiraTicket['fields']['status']['name']);
+    const statusLabel = labelForStatus(jiraTicket['fields']['status']['name']);
     if (statusLabel) {
         ghIssue.Labels.add(statusLabel);
     }
@@ -255,7 +256,11 @@ function jiraToGhIssue(jiraTicket: any): GhIssue {
     ghIssue.Assignable = isAssignable(ghIssue.Assignee);
     ghIssue.Description = formatDescription(jiraTicket['fields']['description'] || '');
     ghIssue.Description += `\n\nImported from Jira [${key}](https://1secondeveryday.atlassian.net/browse/${key}). Original Jira may contain additional context.`;
-    ghIssue.Description += `\nReported by: ${jiraTicket['fields']['reporter']['displayName']}.`;
+    ghIssue.Description += `\nReported by: ${jiraTicket['fields']['reporter']['displayName']}`;
+    if (intercomConversationId) {
+        const intercomUrl = `https://app.intercom.com/a/inbox/wpfppw25/inbox/shared/all/conversation/${intercomConversationId}`;
+        ghIssue.Description += `\nLinked Intercom conversation: ${intercomUrl}`;
+    }
     ghIssue.JiraKey = key
     ghIssue.JiraReferenceId = jiraTicket['id'];
     ghIssue.Milestone = jiraTicket['fields']['fixVersions'][0]?.['name']?.replace('Android ', '')?.replace('iOS ', '');
