@@ -1,12 +1,12 @@
 /*
  * Copyright 2022 Google LLC
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     https://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,59 +14,68 @@
  * limitations under the License.
  */
 
-import * as hm from 'typed-rest-client/HttpClient';
-import { parse } from 'csv-parse/sync';
+const fetch = require('node-fetch');
 
-let hc: hm.HttpClient = new hm.HttpClient(null);
-const batchSize = 90; // Size of the batch of JIRA issues we'll get at once (days between start and creation date).
+const batchSize = 90; // Size of the batch of Jira tickets we'll get at once (days between start and creation date).
 
-function formatDate(d: Date): string {
-    let month = `${d.getMonth()+1}`;
-    if (d.getMonth()+1 < 10) {
-        month = `0${d.getMonth()+1}`;
+function formatDate(d: Date) {
+    let month = `${d.getMonth() + 1}`;
+    if (d.getMonth() + 1 < 10) {
+        month = `0${month}`;
     }
-    return `${d.getFullYear()}-${month}-${d.getDate()}`;
+    let day = String(d.getDate());
+    if (d.getDate() < 10) {
+        day = `0${day}`;
+    }
+    return `${d.getFullYear()}-${month}-${day}`;
 }
 
-function parseJiraCsv(csv: string): any[] {
-    let i = 0;
-    // Since multiple component and/or label columns could exist, give them unique names so the parser can handle them.
-    while (csv.indexOf("Component/s,") > -1) {
-        csv = csv.replace("Component/s,", `Component${i},`);
-        i++;
-    }
-    i = 0;
-    while (csv.indexOf("Labels,") > -1) {
-        csv = csv.replace("Labels,", `Label${i},`);
-        i++;
-    }
-    return parse(csv, {
-        columns: true,
-        skip_empty_lines: true
+export async function fetchJiraTickets(username: string, password: string, project: string, label: string, startDate: Date, endDate: Date) {
+    const jql = `project = ${project} AND labels = ${label} AND resolution = Unresolved AND created >= ${formatDate(startDate)} AND created <= ${formatDate(endDate)} ORDER BY updated DESC`;
+    const authHeader = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
+    const url = `https://1secondeveryday.atlassian.net/rest/api/2/search?jql=${encodeURIComponent(jql)}&maxResults=1000`;
+
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+            'Authorization': authHeader,
+            'Accept': 'application/json'
+        }
     });
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch Jira tickets: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.issues;
 }
 
-export async function getJiras() {
-    let jiras: any[] = [];
-    let curEnd = new Date();
+export async function fetchAllJiraTickets(username: string, password: string, project: string, label: string) {
+    let allTickets = [];
+    let curEnd = new Date(Date.now() + 68400000); // need to go forward a day for some reason
     let curStart = new Date();
     curStart.setDate(curStart.getDate() - batchSize);
+
     while (true) {
-        console.log(`Getting jiras between ${formatDate(curStart)} and ${formatDate(curEnd)}`);
-        const issues = await hc.get(`https://issues.apache.org/jira/sr/jira.issueviews:searchrequest-csv-all-fields/temp/SearchRequest.json?jqlQuery=project+%3D+BEAM+AND+resolution+%3D+Unresolved+AND+created+%3E%3D+${formatDate(curStart)}+AND+created+%3C%3D+${formatDate(curEnd)}+ORDER+BY+priority+DESC%2C+updated+DESC`)
-        const csv: string = (await issues.readBody()).trim();
-        curEnd.setDate(curEnd.getDate() - batchSize - 1);
-        curStart.setDate(curStart.getDate() - batchSize - 1);
-        if (csv.length === 0) {
+        console.log(`Getting Jira tickets between ${formatDate(curStart)} and ${formatDate(curEnd)}`);
+        const tickets = await fetchJiraTickets(username, password, project, label, curStart, curEnd);
+
+        if (tickets.length === 0) {
             break;
         }
-        jiras = jiras.concat(parseJiraCsv(csv));
+
+        allTickets = allTickets.concat(tickets);
+        curEnd.setDate(curEnd.getDate() - batchSize - 1);
+        curStart.setDate(curStart.getDate() - batchSize - 1);
     }
-    curStart.setDate(curStart.getDate() - (365*50));
-    const issues = await hc.get(`https://issues.apache.org/jira/sr/jira.issueviews:searchrequest-csv-all-fields/temp/SearchRequest.json?jqlQuery=project+%3D+BEAM+AND+resolution+%3D+Unresolved+AND+created+%3E%3D+${formatDate(curStart)}+AND+created+%3C%3D+${formatDate(curEnd)}+ORDER+BY+priority+DESC%2C+updated+DESC`)
-    const csv: string = (await issues.readBody()).trim();
-    if (csv.length !== 0) {
-        jiras = jiras.concat(parseJiraCsv(csv));
+
+    curStart.setDate(curStart.getDate() - (365 * 50));
+    const lastTickets = await fetchJiraTickets(username, password, project, label, curStart, curEnd);
+
+    if (lastTickets.length !== 0) {
+        allTickets = allTickets.concat(lastTickets);
     }
-    return jiras.reverse();
+
+    return allTickets.reverse();
 }

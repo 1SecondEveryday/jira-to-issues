@@ -1,12 +1,12 @@
 /*
  * Copyright 2022 Google LLC
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     https://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,33 +18,44 @@ const { Octokit } = require("@octokit/rest");
 const fs = require('fs');
 const fetch = require('node-fetch');
 
-const owner = 'apache';
-const repo = 'beam';
-const stateDir = `./repo-state/${owner}/${repo}`;
-const stateFile = `${stateDir}/alreadyCreated.txt`;
-const mappingFile = `${stateDir}/mapping.txt`;
+const owner = '1SecondEveryday';
+
+/**
+ * Maps milestone names to numbers (IDs).
+ */
+let milestoneMap = Object.create(null);
 
 export class GhIssue {
-    public Title: string;
-    public Labels: Set<string>;
-    public Description: string;
-    public State: string;
-    public Milestone: string;
-    public Assignee: string;
-    public JiraReferenceId: string;
-    public Children: GhIssue[];
     public Assignable: boolean;
+    public Assignee?: string;
+    public Description: string;
+    public JiraKey: string;
+    public JiraReferenceId: string;
+    public Labels: Set<string>;
+    public Milestone: string;
+    public Title: string;
     constructor() {
-        this.Title = '';
-        this.Labels = new Set();
-        this.Description = "";
-        this.State = "open";
-        this.Milestone = "";
-        this.Assignee = "";
-        this.JiraReferenceId = "";
-        this.Children = [];
         this.Assignable = false;
+        this.Assignee = "";
+        this.Description = "";
+        this.JiraKey = "";
+        this.JiraReferenceId = "";
+        this.Labels = new Set();
+        this.Milestone = "";
+        this.Title = "";
     }
+}
+
+function getStateDir(repo: string): string {
+    return `./repo-state/${owner}/${repo}`;
+}
+
+function getStateFile(repo: string): string {
+    return `${getStateDir(repo)}/alreadyCreated.txt`;
+}
+
+function getMappingFile(repo: string): string {
+    return `${getStateDir(repo)}/mapping.txt`;
 }
 
 function sleep(seconds: number): Promise<null> {
@@ -52,124 +63,144 @@ function sleep(seconds: number): Promise<null> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function addComment(issueNumber: number, client: any, body: string, retry: number = 0) {
+async function addComment(repo: string, issueNumber: number, client: any, body: string, retry: number = 0) {
     try {
         let resp = await client.rest.issues.createComment({
             owner: owner,
             repo: repo,
             issue_number: issueNumber,
             body: body,
-          });
+        });
         if (resp.status == 403) {
-            const backoffSeconds= 60*(2**(retry));
+            const backoffSeconds = 60 * (2 ** (retry));
             console.log(`Getting rate limited. Sleeping ${backoffSeconds} seconds`);
             await sleep(backoffSeconds);
             console.log("Trying again");
-            await addComment(issueNumber, client, body, retry+1);
+            await addComment(repo, issueNumber, client, body, retry + 1);
         } else if (resp.status > 210) {
             throw new Error(`Failed to comment on issue with status code: ${resp.status}. Full response: ${resp}`);
         }
     } catch (ex) {
         console.log(`Failed to comment on issue with error: ${ex}`);
-        const backoffSeconds= 60*(2**(retry));
+        const backoffSeconds = 60 * (2 ** (retry));
         console.log(`Sleeping ${backoffSeconds} seconds before retrying`);
         await sleep(backoffSeconds);
         console.log("Trying again");
-        await addComment(issueNumber, client, body, retry+1);
+        await addComment(repo, issueNumber, client, body, retry + 1);
     }
 }
 
-async function addMapping(issueNumber, jiraReference) {
+async function addJiraMappingComment(repo: string, issueNumber: number, jiraReference: string, jiraUsername: string, jiraPassword: string) {
     var bodyData = `{
-    "body": "This issue has been migrated to https://github.com/apache/beam/issues/${issueNumber}"
+        "body": "This issue has been migrated to https://github.com/${owner}/${repo}/issues/${issueNumber}"
     }`;
-    await fetch(`https://issues.apache.org/jira/rest/api/2/issue/${jiraReference}/comment`, {
-    method: 'POST',
-    headers: {
-        'Authorization': `Basic ${Buffer.from(
-        `${process.env['JIRA_USERNAME']}:${process.env['JIRA_PASSWORD']}`
-        ).toString('base64')}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-    },
-    body: bodyData
+    await fetch(`https://1secondeveryday.atlassian.net/rest/api/2/issue/${jiraReference}/comment`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Basic ${Buffer.from(`${jiraUsername}:${jiraPassword}`).toString('base64')}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: bodyData
     })
 }
 
-async function createIssue(issue: GhIssue, client: any, retry: number = 0, parent: number = -1): Promise<number> {
+async function createIssue(repo: string, issue: GhIssue, client: any, jiraUsername: string, jiraPassword: string, retry: number = 0): Promise<number> {
     let description = issue.Description;
-    if (parent != -1) {
-        description += `\nSubtask of issue #${parent}`;
-    }
     let assignees: string[] = [];
     if (issue.Assignee && issue.Assignable) {
         assignees.push(issue.Assignee);
     }
     try {
+        var milestoneNumber;
+        if (issue.Milestone) {
+            if (Object.keys(milestoneMap).length == 0) {
+                let milestoneResp = await client.rest.issues.listMilestones({
+                    owner: owner,
+                    repo: repo,
+                });
+                for (const milestone of milestoneResp.data) {
+                    milestoneMap[milestone['title']] = milestone['number'];
+                }
+                console.log(`Cached ${Object.keys(milestoneMap).length} milestones for ${owner}/${repo}`);
+            }
+            milestoneNumber = milestoneMap[issue.Milestone];
+            if (!milestoneNumber) {
+                console.log(`Creating milestone ${issue.Milestone} for ${owner}/${repo}`);
+                const milestone = await client.rest.issues.createMilestone({
+                    owner: owner,
+                    repo: repo,
+                    title: issue.Milestone,
+                });
+                milestoneMap[milestone.data['title']] = milestone.data['number'];
+                milestoneNumber = milestone.data['number'];
+            }
+        }
         let resp = await client.rest.issues.create({
             owner: owner,
             repo: repo,
             assignees: assignees,
             title: issue.Title,
             body: description,
-            labels: Array.from(issue.Labels)
+            labels: Array.from(issue.Labels),
+            milestone: milestoneNumber,
         });
         if (resp.status == 403) {
-            const backoffSeconds= 60*(2**(retry));
+            const backoffSeconds = 60 * (2 ** (retry));
             console.log(`Getting rate limited. Sleeping ${backoffSeconds} seconds`);
             await sleep(backoffSeconds);
             console.log("Trying again");
-            return await createIssue(issue, client, retry+1, parent);
+            return await createIssue(repo, issue, client, jiraUsername, jiraPassword, retry + 1);
         } else if (resp.status < 210) {
-            console.log(`Issue #${resp.data.number} maps to ${issue.JiraReferenceId}`);
+            const issueNumber = resp.data.number;
             if (!issue.Assignable && issue.Assignee) {
-                await addComment(resp.data.number, client, `Unable to assign user @${issue.Assignee}. If able, self-assign, otherwise tag @damccorm so that he can assign you. Because of GitHub's spam prevention system, your activity is required to enable assignment in this repo.`, 0);
+                console.log(`WARNING! Unable to assign ${repo}#${issueNumber} to @${issue.Assignee}. Please assign yourself and tag @samsonjs if it doesn't work. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`);
+                await addComment(repo, issueNumber, client, `Unable to assign @${issue.Assignee}. Please assign yourself and tag @samsonjs if it doesn't work. Due to GitHub's spam prevention system, you must be active in order to participate in this repo.`, 0);
             }
-            fs.appendFileSync(mappingFile, `${resp.data.number}: ${issue.JiraReferenceId}\n`);
+            let mappingFile = getMappingFile(repo);
+            fs.appendFileSync(mappingFile, `${issueNumber}: ${issue.JiraKey}\n`);
             try {
-                await addMapping(resp.data.number, issue.JiraReferenceId)
+                await addJiraMappingComment(repo, issueNumber, issue.JiraReferenceId, jiraUsername, jiraPassword)
             } catch {
                 try {
-                    await addMapping(resp.data.number, issue.JiraReferenceId)
+                    await addJiraMappingComment(repo, issueNumber, issue.JiraReferenceId, jiraUsername, jiraPassword)
                 } catch {
-                    console.log(`Failed to record migration of ${issue.JiraReferenceId} to issue number${resp.data.number}`);
+                    console.log(`Failed to record migration of ${issue.JiraKey} to issue ${owner}:${repo}#${issueNumber}`);
                     fs.appendFileSync(mappingFile, `Previous line failed to be recorded in jira\n`);
                 }
             }
-            let issueNumbers: number[] = []
-            for (const child of issue.Children) {
-                issueNumbers.push(await createIssue(child, client, 0, resp.data.number));
-            }
-            if (issueNumbers.length > 0) {
-                await addComment(resp.data.number, client, `The following subtask(s) are associated with this issue:${issueNumbers.map(n => ` #${n}`).join(',')}`, 0);
-            }
-            return resp.data.number;
+            return issueNumber;
         } else {
-            throw new Error(`Failed to create issue: ${resp.data.title} with status code: ${resp.status}. Full response: ${resp}`);
+            throw new Error(`Failed to create issue: ${issue.Title} with status code: ${resp.status}. Full response: ${resp}`);
         }
     } catch (ex) {
-        console.log(`Failed to create issue with error: ${ex}`);
-        const backoffSeconds= 60*(2**(retry));
-        console.log(`Sleeping ${backoffSeconds} seconds before retrying`);
+        console.log(`* Failed to create issue for ${issue.JiraKey} with error: ${ex}`);
+        const backoffSeconds = 60 * (2 ** (retry));
+        console.log(`Sleeping ${backoffSeconds} seconds before retrying...`);
         await sleep(backoffSeconds);
-        console.log("Trying again");
-        return await createIssue(issue, client, retry+1, parent);
+        return await createIssue(repo, issue, client, jiraUsername, jiraPassword, retry + 1);
     }
 }
 
-export async function createIssues(issues: GhIssue[], githubToken: string) {
-    const client = new Octokit({auth: githubToken});
+export async function createIssues(issues: GhIssue[], repo: string, token: string, jiraUsername: string, jiraPassword: string) {
+    const client = new Octokit({ auth: token });
     let alreadyCreated: string[] = [];
+    let stateDir = getStateDir(repo);
+    let stateFile = getStateFile(repo);
     if (fs.existsSync(stateFile)) {
-        alreadyCreated = fs.readFileSync(stateFile, {encoding:'utf8'}).split(',');
+        alreadyCreated = fs.readFileSync(stateFile, { encoding: 'utf8' }).split(',');
     } else {
         fs.mkdirSync(stateDir, { recursive: true });
     }
     for (const issue of issues) {
-        if (alreadyCreated.indexOf(issue.JiraReferenceId) < 0) {
-            await createIssue(issue, client);
-            alreadyCreated.push(issue.JiraReferenceId);
-            fs.writeFileSync(stateFile, alreadyCreated.join(','));
-        }
+        if (alreadyCreated.indexOf(issue.JiraKey) >= 0) continue;
+
+        const issueNumber = await createIssue(repo, issue, client, jiraUsername, jiraPassword);
+        alreadyCreated.push(issue.JiraKey);
+        fs.writeFileSync(stateFile, alreadyCreated.join(','));
+        console.log(`* (${alreadyCreated.length} of ${issues.length}) ${issue.JiraKey} maps to ${owner}:${repo}#${issueNumber}`);
+
+        // Try not to get rate-limited
+        await sleep(1);
     }
 }
