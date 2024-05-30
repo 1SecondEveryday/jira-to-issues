@@ -281,9 +281,9 @@ function mapAssigneeToHandle(assignee?: string): string | undefined {
             return "samsonjs";
         case "Megan Olesky":
             return "molesky";
-        case "Mostafa":
+        case "Mostafa Abdellateef":
             return "mmabdelateef";
-        case "jeff":
+        case "Jeff Blagdon":
             return "jefflovejapan";
         case "Marilyn García":
             return "mgarciam";
