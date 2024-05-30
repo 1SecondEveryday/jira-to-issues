@@ -53,7 +53,7 @@ export async function fetchJiraTickets(username: string, password: string, proje
 
 export async function fetchAllJiraTickets(username: string, password: string, project: string, label: string) {
     let allTickets = [];
-    let curEnd = new Date();
+    let curEnd = new Date(Date.now() + 68400000); // need to go forward a day for some reason
     let curStart = new Date();
     curStart.setDate(curStart.getDate() - batchSize);
 
