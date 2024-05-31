@@ -263,6 +263,7 @@ function jiraToGhIssue(jiraTicket: any): GhIssue {
     }
     ghIssue.JiraKey = key
     ghIssue.JiraReferenceId = jiraTicket['id'];
+    ghIssue.JiraEpicKey = jiraTicket['fields']['parent']?.['key'];
     ghIssue.Milestone = jiraTicket['fields']['fixVersions'][0]?.['name']?.replace('Android ', '')?.replace('iOS ', '');
 
     return ghIssue;

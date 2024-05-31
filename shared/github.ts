@@ -31,6 +31,7 @@ export class GhIssue {
     public Description: string;
     public JiraKey: string;
     public JiraReferenceId: string;
+    public JiraEpicKey?: string;
     public Labels: Set<string>;
     public Milestone: string;
     public Title: string;
@@ -192,13 +193,34 @@ export async function createIssues(issues: GhIssue[], repo: string, token: strin
     } else {
         fs.mkdirSync(stateDir, { recursive: true });
     }
+    let mapping = Object.create(null);
+    let mappingFile = getMappingFile(repo);
+    if (fs.existsSync(mappingFile)) {
+        mapping = fs.readFileSync(mappingFile, { encoding: 'utf8' })
+            .split('\n')
+            .reduce((all, line) => {
+                const pair = line.split(': ');
+                if (pair[1]) all[pair[1]] = pair[0];
+                return all;
+            }, Object.create(null));
+    }
     for (const issue of issues) {
-        if (alreadyCreated.indexOf(issue.JiraKey) >= 0) continue;
-
-        const issueNumber = await createIssue(repo, issue, client, jiraUsername, jiraPassword);
-        alreadyCreated.push(issue.JiraKey);
-        fs.writeFileSync(stateFile, alreadyCreated.join(','));
-        console.log(`* (${alreadyCreated.length} of ${issues.length}) ${issue.JiraKey} maps to ${owner}:${repo}#${issueNumber}`);
+        if (alreadyCreated.indexOf(issue.JiraKey) < 0) {
+            const issueNumber = await createIssue(repo, issue, client, jiraUsername, jiraPassword);
+            mapping[issue.JiraKey] = issueNumber;
+            alreadyCreated.push(issue.JiraKey);
+            fs.writeFileSync(stateFile, alreadyCreated.join(','));
+            console.log(`* (${alreadyCreated.length} of ${issues.length}) ${issue.JiraKey} maps to ${owner}:${repo}#${issueNumber}`);
+        }
+        if (issue.JiraEpicKey) {
+            const issueNumber = mapping[issue.JiraKey];
+            const parentIssueNumber = mapping[issue.JiraEpicKey];
+            if (parentIssueNumber) {
+                const body = `Epic: https://github.com/${owner}/${repo}/issues/${parentIssueNumber}`;
+                await addComment(repo, issueNumber, client, body);
+                console.log(`* Commented with link to epic/parent from #${issueNumber} to #${parentIssueNumber}`);
+            }
+        }
 
         // Try not to get rate-limited
         await sleep(1);
