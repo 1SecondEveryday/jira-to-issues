@@ -212,15 +212,20 @@ export async function createIssues(issues: GhIssue[], repo: string, token: strin
             fs.writeFileSync(stateFile, alreadyCreated.join(','));
             console.log(`* (${alreadyCreated.length} of ${issues.length}) ${issue.JiraKey} maps to ${owner}:${repo}#${issueNumber}`);
         }
-        if (issue.JiraEpicKey) {
-            const issueNumber = mapping[issue.JiraKey];
-            const parentIssueNumber = mapping[issue.JiraEpicKey];
-            if (parentIssueNumber) {
-                const body = `Epic: https://github.com/${owner}/${repo}/issues/${parentIssueNumber}`;
-                await addComment(repo, issueNumber, client, body);
-                console.log(`* Commented with link to epic/parent from #${issueNumber} to #${parentIssueNumber}`);
-            }
-        }
+
+        // Try not to get rate-limited
+        await sleep(1);
+    }
+    for (const issue of issues) {
+        if (!issue.JiraEpicKey) continue;
+
+        const issueNumber = mapping[issue.JiraKey];
+        const parentIssueNumber = mapping[issue.JiraEpicKey];
+        if (!parentIssueNumber) continue;
+
+        const body = `Epic: https://github.com/${owner}/${repo}/issues/${parentIssueNumber}`;
+        await addComment(repo, issueNumber, client, body);
+        console.log(`* Commented with link to epic/parent from #${issueNumber} to #${parentIssueNumber}`);
 
         // Try not to get rate-limited
         await sleep(1);
